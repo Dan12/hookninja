@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections;
+using UnityEngine.UI;
 
 public class MainScript : MonoBehaviour {
 
@@ -11,24 +12,27 @@ public class MainScript : MonoBehaviour {
 	
 	// the player prefab
 	public GameObject playerObject;
-	
-	// thePlayer variable will be playerObject instance during the game
-	private GameObject thePlayer;
-	
-	// the distance joint we are going to build on the fly during the game
-	private DistanceJoint2D hookJoint;
-	
-	// there is no debug draw mode to show distance joints so I am going to use a LineRenderer to draw it manually
-	private LineRenderer rope;
 
-	public float hookInvSpeed = 0.8f;
-	
-	
+	//lava
+	public GameObject lavaObject;
+
+	//enemy
+	public GameObject enemyObject;
+
+	public Text diedText;
+
+	private float wallXPos = 0f;
+
+	private float pieceWidth = 1f;
+	private float[] xChange = {0.5f,1.5f};
+	private float[] yChange = {-1f,2f};
+
+	private float lavaPos;
+
 	// Use this for initialization
-	void Start () {
-		
-		// initializing rope's LineRenderer
-		rope = GetComponent<LineRenderer>();
+	void Awake () {
+
+		lavaPos = pieceWidth;
 		
 		// placing the floor object on the stage
 		Instantiate(floorObject);
@@ -37,80 +41,57 @@ public class MainScript : MonoBehaviour {
 		floorObject.transform.position = new Vector2(0f, -2.2f);
 		
 		// adding the player to stage
-		thePlayer = Instantiate(playerObject);
+		GameObject thePlayer = Instantiate(playerObject);
 		
 		// adjusting player position
-		thePlayer.transform.position = new Vector2(0f, -1.8f);
-		
-		// generating 8 random walls
-		for (int i = 0; i < 8; i++) {
-			GameObject randomWall = Instantiate(wallObject);
-			float screenWidth = Screen.width / 200;
-			float screenHeight = Screen.height / 200;
-			float randomX = Random.Range(-screenWidth, screenWidth);
-			float randomY = Random.Range(-screenHeight / 2, screenHeight);
-			randomWall.transform.position = new Vector2(randomX, randomY);
-		}
+		thePlayer.transform.position = new Vector2 (0f, -1.8f);
+
+		GameObject enemy = Instantiate (enemyObject);
+		enemy.transform.position = new Vector2 (-3.6f,0f);
+
+		placeWall ();
+
+		placeLava ();
+	}
+
+	void placeWall(){
+		GameObject randomWall = Instantiate(wallObject);
+		float randomX = Random.Range(wallXPos+xChange[0], wallXPos+xChange[1]);
+		float randomY = Random.Range(yChange[0],yChange[1]);
+		randomWall.transform.position = new Vector2(randomX, randomY);
+		wallXPos = randomX;
+		if (wallXPos < GameObject.FindWithTag ("MainCamera").transform.position.x+5f)
+			placeWall ();
+	}
+
+	void placeLava(){
+		int numPlace = Mathf.RoundToInt(Random.Range (0, 2));
+		GameObject newPeice = null;
+		if(numPlace < 1)
+			newPeice = Instantiate(lavaObject);
+		else
+			newPeice = Instantiate(floorObject);
+		newPeice.transform.position = new Vector2(lavaPos, -2.2f);
+		lavaPos+= pieceWidth;
+		if (lavaPos < GameObject.FindWithTag ("MainCamera").transform.position.x+5f)
+			placeLava ();
 	}
 	
 	// Update is called once per frame
 	void Update () {
-		
-		// if mouse is pressed...
-		if (Input.GetButtonDown ("Fire1")) {
-			
-			// this is how I fire a ray cast to check for objects under the mouse
-			RaycastHit2D hit = Physics2D.Raycast (Camera.main.ScreenToWorldPoint (Input.mousePosition), Vector2.zero);
-			
-			// if there's a collision and the colliding game object has been tagged as "Wall"...
-			if (hit.collider != null && hit.collider.gameObject.CompareTag("Wall")) {
-				
-				// adding a distance joint to the player
-				hookJoint = thePlayer.AddComponent<DistanceJoint2D>() as DistanceJoint2D;
-				
-				// connecting the distance joint to the object under the mouse 
-				hookJoint.connectedBody = hit.collider.GetComponent<Rigidbody2D>();
-				
-				// calculating the distance between the player and the object under the mouse
-				float distance = Vector2.Distance(hit.transform.position, thePlayer.transform.position);
-				
-				// setting distance joint distance accordingly
-				hookJoint.distance = distance;
-				
-				// objects connected by the joint can collide
-				hookJoint.enableCollision = true;
-				
-				// this LineRenderer has two points, marked as "0" and "1". Setting "0" points to wall position
-				rope.SetPosition(0, hit.transform.position);
-			}
-		}
-		
-		// if mouse is released...
-		if (Input.GetButtonUp("Fire1")) {
-			
-			// if there is a distance joint...
-			if (hookJoint) {
-				
-				// destroying the joint
-				Destroy(hookJoint);
-				
-				// setting hookJoint variable to null
-				hookJoint = null;
-				
-				// setting "0" and "1" points in the same position will cause the rope not to render
-				rope.SetPosition(0, new Vector3(0, 0, 0));
-				rope.SetPosition(1, new Vector3(0, 0, 0));
-			}
-		}
-		
-		// if there is a distance joint...
-		if (hookJoint) {
-			
-			// shorten its distance by 0.05%
-			hookJoint.distance = hookJoint.distance * hookInvSpeed;
-			
-			// setting "1" points of rope LineRenderer to player position, causing the rope to be displayed
-			rope.SetPosition(1, thePlayer.transform.position);
-		}
+		if (wallXPos < GameObject.FindWithTag ("MainCamera").transform.position.x+5f)
+			placeWall ();
+
+		if (lavaPos < GameObject.FindWithTag ("MainCamera").transform.position.x+5f)
+			placeLava ();
+
+		//print (GameObject.FindWithTag ("MainCamera").transform.position.x);
+		//print (wallXPos);
+	}
+
+	public void gameOver(){
+		print ("GameOver");
+		GameObject.FindGameObjectWithTag ("Player") .SendMessage ("died");
+		diedText.enabled = true;
 	}
 }
